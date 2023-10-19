@@ -1,162 +1,451 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <climits>
 #include <algorithm>
-#include <utility>
 
 using namespace std;
 
-class Process {
+#define DEBUG 1
+
+class Process{
 public:
     int AT; // Arrival time
     int BT; // Burst time
-    int RBT; // Remaining burst time
+    int RBT; // Remain burst time
     int CT; // Completion time
-    int TAT; // Turnaround time
+    int TAT; // Turn around time
     int WT; // Waiting time
-    int id; // Process ID
+    int ID;
+    bool Preempt; // Preempt flag
+    bool JustPreempted; // flag for RR
+
+    Process(){
+        AT = BT = RBT = CT = TAT = WT = 0;
+        ID = -1;
+        Preempt = false;
+    }
+
+    Process(int ID){
+        this->ID = ID;
+        AT = BT = RBT = CT = TAT = WT;
+        Preempt = false;
+        JustPreempted = false;
+    }
+
+    void printInfo(){
+        cout << "----------" << endl;
+        cout << "Process: " << ID << endl;
+        cout << "AT: " << AT << endl;
+        cout << "BT: " << BT << endl;
+        cout << "RBT: " << RBT << endl;
+        cout << "CT: " << CT << endl;
+        cout << "TAT: " << TAT << endl;
+        cout << "WT: " << WT << endl;
+        cout << "Preempt: " << ((Preempt == true) ? "True" : "False") << endl;
+        cout << "Just Preempt: " << ((JustPreempted == true) ? "True" : "False") << endl;
+    }
 };
 
-bool compareID(const Process& p1, const Process& p2) {
-    return p1.id < p2.id;
-}
+class MultilevelQueue {
 
-// Function to execute processes in Round Robin (RR)
-void execute_rr(queue<Process>& queue, int time_quantum, int current_time) {
-    if (queue.empty()) return;
+public:
+    vector<Process*> v;
+    int order;  // Order of insertion
+    int TQ; // Time Quantum
+    int mode;
+    int used_time; // Record for processes in RR used time
+    Process* previous;
 
-    Process& process = queue.front();
-    int remaining_time = process.RBT;
-    if (remaining_time <= time_quantum) {
-        // Process completes within the time quantum
-        process.CT = current_time + remaining_time;
-        process.TAT = process.CT - process.AT;
-        process.WT = process.TAT - process.BT;
-        process.RBT = 0; // Process is done
-        queue.pop();
-    } else {
-        // Process doesn't complete within the time quantum
-        process.CT = current_time + time_quantum;
-        process.RBT -= time_quantum;
-        queue.pop();
+    MultilevelQueue();
+
+    MultilevelQueue(int m, int t, int ord) : order(ord), mode(m), TQ(t) {
+        previous = nullptr;
+        v.clear();
+        used_time = 0;
     }
-}
 
-// Function to execute processes in Shortest Remaining Time First (SRTF)
-void execute_srtf(queue<Process>& queue, int current_time) {
-    if (queue.empty()) return;
+    // Define a custom comparison operator
+    bool operator<(const MultilevelQueue& other) const {
+        return order > other.order;  // Higher order has higher priority
+    }
 
-    Process& shortest = queue.front();
-    for (const Process& process : queue) {
-        if (process.RBT < shortest.RBT && process.AT <= current_time) {
-            shortest = process;
+    Process* update();
+    Process* FCFS();
+    Process* SRTF();
+    Process* RR();
+
+    void update_wait_time();
+    void printVector(){
+        for(auto it: v){
+            it->printInfo();
         }
     }
+};
 
-    if (shortest.RBT > 0) {
-        shortest.CT = current_time + 1;
-        shortest.RBT--;
-        if (shortest.RBT == 0) {
-            shortest.TAT = shortest.CT - shortest.AT;
-            shortest.WT = shortest.TAT - shortest.BT;
-            queue.pop();
+// Update the Multilevel queue for one time interval and return the process has updated
+Process* MultilevelQueue::update(){
+    Process* p;
+        switch(mode){
+            case 0:
+                p = FCFS();
+                #ifdef DEBUG
+                // cout << "[DEBUG] After FCFS:" << endl;
+                // printVector();
+                #endif
+                break;
+            case 1:
+                p = SRTF();
+                #ifdef DEBUG
+                // cout << "[DEBUG] After SRTF:" << endl;
+                // printVector();
+                #endif
+                break;
+            case 2:
+                p = RR();
+                #ifdef DEBUG
+                // cout << "[DEBUG] After RR:" << endl;
+                // printVector();
+                #endif
+                break;
+            default:
+                break;
         }
-    }
+    return p;
 }
 
-// Function to execute processes in First-Come-First-Serve (FCFS)
-void execute_fcfs(queue<Process>& queue, int current_time) {
-    if (queue.empty()) return;
-
-    Process& process = queue.front();
-    if (process.AT <= current_time) {
-        process.CT = current_time + process.BT;
-        process.TAT = process.CT - process.AT;
-        process.WT = process.TAT - process.BT;
-        queue.pop();
+void MultilevelQueue::update_wait_time(){
+    for(auto it: v){
+        it->WT++;
+        #ifdef DEBUG
+        // cout << "Process: " << it->ID << ", WT: " << it->WT << endl;
+        #endif
     }
+    return;
+}
+
+// Update the process queue based on the FCFS for one time interval
+// Return the process which has been processed
+Process* MultilevelQueue::FCFS(){
+    // printVector();
+    Process* p = v.front();
+    p->RBT--;
+    p->WT--;
+    if(p->RBT == 0) {
+        v.erase(v.begin());
+        p->WT++;
+    }
+    update_wait_time();
+    return p;
+}
+    
+// Update the process queue based on the SRTF for one time interval
+// Return the process which has been processed
+Process* MultilevelQueue::SRTF(){
+    Process* p;
+    int min_remaining_time = INT_MAX;
+    vector<Process*>::iterator selected_process = v.end(); // Initialize with an invalid iterator
+
+    // Find the highest priority process in the vector
+    for (auto it = v.begin(); it != v.end(); ++it) {
+        if (min_remaining_time > (*it)->RBT) {
+            min_remaining_time = (*it)->RBT;
+            p = *it;
+            selected_process = it; // Update the selected_process iterator
+        }
+        // If have the same remaining time, choose the larger arrival time
+        else if (min_remaining_time == (*it)->RBT) {
+            if (p->AT > (*it)->AT) {
+                p = *it;
+                selected_process = it; // Update the selected_process iterator
+            }
+        }
+    }
+    if (previous == nullptr) {
+        previous = p;
+    }
+    if (p != previous) {
+        previous->Preempt = true;
+        cout << "[DEBUG] Setting previous id: " << previous->ID << " to Preempt!" << endl;
+    }
+    p->RBT--;
+    p->WT--;
+
+    cout << "[DEBUG] Previous ID: " << previous->ID << endl;
+    cout << "[DEBUG] Current ID: " << p->ID << endl;
+
+    if (p->RBT == 0) {
+        #ifdef DEBUG
+        cout << "[DEBUG] Deleting Process: " << p->ID << endl;
+        #endif 
+        v.erase(selected_process); // Remove the process using the iterator
+        p->WT++;
+    }
+    update_wait_time();
+    return p;
+}
+    
+// Update the process queue based on the RR for one interval
+// Return the process which has been processed
+Process* MultilevelQueue::RR(){
+    Process* p = v.front();
+    if (previous == nullptr){
+        previous = p;
+    }    
+    if (p != previous) {
+        previous->Preempt = true;
+    }
+    
+    p->RBT--;
+    p->WT--;
+    used_time++;
+    if(used_time == TQ && p->RBT > 0){
+        previous = p;
+        if(v.size() > 1){
+            p = v[1];
+        }
+        else p = v[0];
+        used_time = 0;
+        previous->Preempt = true;
+    }
+    #ifdef DEBUG
+    cout << "[DEBUG] Previous ID: " << previous->ID << endl;
+    cout << "[DEBUG] Processing: " << p->ID << endl;
+    cout << "[DEBUG] Used time: " << used_time << endl;
+    cout << "[DEBUG] Process RBT: " << p->RBT << endl;
+    #endif
+    if(p->RBT == 0){
+        #ifdef DEBUG
+        cout << "[DEBUG] Deleting Process: " << p->ID << endl;
+        #endif 
+        // Find the iterator to the process with matching ID
+        auto it = std::find_if(v.begin(), v.end(), [p](const Process* process) {
+            return process->ID == p->ID;
+        });
+
+        if (it != v.end()) {
+        // Erase the process with matching ID from the vector
+            v.erase(it);
+        }
+        used_time = 0;
+        p->WT++;
+    }
+    update_wait_time();
+    return p;
+}
+
+bool CompareProcessesByID(const Process* p1, const Process* p2) {
+    return p1->ID < p2->ID;
+}
+
+void print_all_queue(priority_queue<MultilevelQueue> pq){
+    vector<MultilevelQueue> tmpMQ;
+    while(!pq.empty()){
+        tmpMQ.push_back(pq.top());
+        pq.pop();
+    }
+    for(auto it : tmpMQ){
+        cout << "[DEBUG] Queue number: " << it.order << "'s info: " << endl;
+        if(it.previous != nullptr)cout << "[DEBUG] Queue previous ID: " << it.previous->ID << endl;
+        else cout << "[DEBUG] No previous!" << endl;
+        it.printVector();
+    }
+    return;
 }
 
 int main() {
-    int num_queues, num_processes;
-    cin >> num_queues >> num_processes;
+    int N, M;
+    cin >> N >> M;
+    priority_queue<MultilevelQueue> pq;
 
-    vector<queue<Process>> queues(num_queues);
-    vector<int> time_quantum(num_queues);
+    for (int i = 0; i < N; i++) {
+        int mode, TQ;
+        cin >> mode >> TQ;
+        pq.push(MultilevelQueue(mode, TQ, i));
+    }
 
-    for (int i = 0; i < num_queues; ++i) {
-        int mode;
-        cin >> mode;
-        if (mode == 2) {
-            cin >> time_quantum[i];
-        } else {
-            time_quantum[i] = -1;
+    queue<Process*> processes;
+    for (int i = 0; i < M; i++) {
+        Process* tmp = new Process(i);
+        cin >> tmp->AT >> tmp->BT;
+        tmp->RBT = tmp->BT;
+        tmp->Preempt = false;
+        tmp->WT = 0;
+        tmp->CT = 0;
+        tmp->TAT = 0;
+        processes.push(tmp);
+    }
+    
+    int time = 0;
+    vector<Process*> finish;
+
+    while(true){
+        #ifdef DEBUG
+        cout << "[DEBUG] Time: " << time << endl;
+        fgetc(stdin);  
+        #endif
+        bool emptyFlag = true;
+        vector<MultilevelQueue> tmpMQ;
+        while(!pq.empty()){
+            tmpMQ.push_back(pq.top());
+            pq.pop();
         }
-    }
+        for(auto it: tmpMQ){
+            if(it.v.empty() == false){
+                emptyFlag = false;
+            }
+            pq.push(it);
+        }
+        tmpMQ.clear();
+        if(emptyFlag && processes.front()->AT > time){
+            while(!pq.empty()){
+                tmpMQ.push_back(pq.top());
+                pq.pop();
+            }
+            for(auto it: tmpMQ){
+                for(int i = 0 ; i < it.v.size() ; i++){
+                    it.v[i]->JustPreempted = false;
+                }
+                pq.push(it);
+            }
+            tmpMQ.clear();
+            time++;
+            continue;
+        }
 
-    for (int i = 0; i < num_processes; ++i) {
-        int arrival_time, burst_time;
-        cin >> arrival_time >> burst_time;
-        Process process;
-        process.AT = arrival_time;
-        process.BT = burst_time;
-        process.RBT = burst_time;
-        process.id = i;
-        // Assign processes to the appropriate queues based on input order
-        queues[i % num_queues].push(process);
-    }
-
-    int current_time = 0;
-
-    while (true) {
-        // Add your queue execution logic here
-        for (int i = 0; i < num_queues; ++i) {
-            if (i == 0) {
-                execute_srtf(queues[0], current_time);
-            } else if (i == 1) {
-                execute_rr(queues[1], time_quantum[1], current_time);
-            } else if (i == 2) {
-                execute_fcfs(queues[2], current_time);
+        while(!pq.empty()){
+            tmpMQ.push_back(pq.top());
+            pq.pop();
+        }
+        if(!processes.empty()){
+            Process* new_process;
+            new_process = processes.front();
+            // New process arrives
+            if(new_process->AT == time){
+                tmpMQ[0].v.push_back(new_process); // push the process into the multilevel queue
+                processes.pop(); // remove the process since it has arrived
+                if(tmpMQ[0].v.size() >= 2 && tmpMQ[0].v[tmpMQ[0].v.size() - 2]->JustPreempted == true){
+                    // Used for RR, when pushing into the vector, put the larger arrival time first
+                    if(tmpMQ[0].v[tmpMQ[0].v.size() - 2]->AT < tmpMQ[0].v[tmpMQ[0].v.size() - 1]->AT){
+                        std::swap(tmpMQ[0].v[tmpMQ[0].v.size() - 2], tmpMQ[0].v[tmpMQ[0].v.size() - 1]);
+                    }
+                }
+                if(tmpMQ.size() >= 2 && tmpMQ[0].v.size() == 1){
+                    // Preempt lower queue's process when new process coming
+                    bool lower_queue_exist_process = false;
+                    int queue_id = -1;
+                    for(int i = 1; i < tmpMQ.size() ; i++){
+                        if(!tmpMQ[i].v.empty()) {
+                            lower_queue_exist_process = true;
+                            queue_id = i;
+                            break;
+                        }
+                    }
+                    if(lower_queue_exist_process && tmpMQ[queue_id].previous != nullptr) {
+                        #ifdef DEBUG
+                        cout << "[DEBUG] Setting Queue " << queue_id << "'s process " << tmpMQ[queue_id].previous->ID << " to true!" << endl;
+                        #endif
+                        tmpMQ[queue_id].previous->Preempt = true;
+                    }
+                    else if (lower_queue_exist_process){
+                        tmpMQ[queue_id].v[0]->Preempt = true;
+                    }
+                }
             }
         }
+        for(auto it: tmpMQ){
+            for(int i = 0 ; i < it.v.size() ; i++){
+                it.v[i]->JustPreempted = false;
+            }
+            pq.push(it);
+        }
+        tmpMQ.clear();
 
-        bool allQueuesEmpty = true;
-        for (const auto& queue : queues) {
-            if (!queue.empty()) {
-                allQueuesEmpty = false;
+        Process* updated_process;
+        MultilevelQueue updated_queue = pq.top();
+        while(!pq.empty()){
+            tmpMQ.push_back(pq.top());
+            pq.pop();
+        }
+        for(int i = 0 ; i < tmpMQ.size() ; i++){
+            if(!tmpMQ[i].v.empty()){
+                updated_process = tmpMQ[i].update();
+                updated_queue = tmpMQ[i];
                 break;
             }
         }
+        
+        for(auto it: tmpMQ){
+            if(it.order != updated_queue.order) 
+                it.update_wait_time();
+        }
 
-        if (allQueuesEmpty) {
+        for(int i = 0 ; i < tmpMQ.size() ;i++){
+            for(int j = 0 ; j < tmpMQ[i].v.size() ; j++){
+                if(tmpMQ[i].v[j]->Preempt == true){
+                    if(i != tmpMQ.size() - 1){ // exist other level Queue
+                        tmpMQ[i].v[j]->Preempt = false;
+                        tmpMQ[i].v[j]->JustPreempted = true;
+                        tmpMQ[i + 1].v.push_back(tmpMQ[i].v[j]);
+                        auto it = std::find(tmpMQ[i].v.begin(), tmpMQ[i].v.end(), tmpMQ[i].v[j]);
+                        tmpMQ[i].v.erase(it);
+                    }
+                    else{
+                        Process* tmp = tmpMQ[i].v[j];
+                        tmp->Preempt = false;
+                        tmp->JustPreempted = true;
+                        auto it = std::find(tmpMQ[i].v.begin(), tmpMQ[i].v.end(), tmpMQ[i].v[j]);
+                        tmpMQ[i].v.erase(it);
+                        tmpMQ[i].v.push_back(tmp);
+                    }
+                    if(!tmpMQ[i].v.empty()){
+                        tmpMQ[i].previous = tmpMQ[i].v[0];
+                    }
+                    else{
+                        tmpMQ[i].previous = nullptr;
+                    }
+                }
+            }
+        }
+        // The highest priority multilevel queue is not empty or not all processes has arrived
+        if(!tmpMQ[0].v.empty() || !processes.empty()){
+            pq.push(tmpMQ[0]);
+        }
+        for(int i = 1 ; i < tmpMQ.size() ; i++){
+            pq.push(tmpMQ[i]);
+        }
+        tmpMQ.clear();
+
+        // Process has finished
+        if(updated_process->RBT == 0){
+            updated_process->CT = time + 1;
+            updated_process->TAT = updated_process->CT - updated_process->AT;
+            finish.push_back(updated_process);
+        }
+
+        // All multilevel queues are empty
+        if(pq.empty()){
             break;
         }
-
-        current_time++;
-    }
-
-    // Calculate and print turnaround time and waiting time for each process
-    vector<Process> allProcesses;
-    for (auto& queue : queues) {
-        while (!queue.empty()) {
-            allProcesses.push_back(queue.front());
-            queue.pop();
-        }
-    }
-
-    sort(allProcesses.begin(), allProcesses.end(), compareID);
-
-    for (const Process& process : allProcesses) {
-        cout << process.WT << " " << process.TAT << endl;
-    }
+        time++; // Update timer
+        #ifdef DEBUG
+        print_all_queue(pq);
+        cout << "=====================" << endl;
+        #endif
+    }   
 
     int total_wait_time = 0;
     int total_turnaround_time = 0;
-    for (const Process& process : allProcesses) {
-        total_wait_time += process.WT;
-        total_turnaround_time += process.TAT;
-    }
 
+    sort(finish.begin(), finish.end(), CompareProcessesByID);
+    for(Process* p : finish){
+        #ifdef DEBUG
+        p->printInfo();
+        #endif
+        cout << p->WT << " " << p->TAT << endl;
+        total_wait_time += p->WT;
+        total_turnaround_time += p->TAT;
+    }
     cout << total_wait_time << endl;
     cout << total_turnaround_time << endl;
 

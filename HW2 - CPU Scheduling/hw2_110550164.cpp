@@ -6,7 +6,7 @@
 
 using namespace std;
 
-#define DEBUG 1
+// #define DEBUG 1
 
 class Process{
 public:
@@ -166,14 +166,14 @@ Process* MultilevelQueue::SRTF(){
     }
     if (p != previous) {
         previous->Preempt = true;
-        cout << "[DEBUG] Setting previous id: " << previous->ID << " to Preempt!" << endl;
     }
     p->RBT--;
     p->WT--;
-
+    #ifdef DEBUG
     cout << "[DEBUG] Previous ID: " << previous->ID << endl;
     cout << "[DEBUG] Current ID: " << p->ID << endl;
-
+    cout << "[DEBUG] Process RBT: " << p->RBT << endl;
+    #endif
     if (p->RBT == 0) {
         #ifdef DEBUG
         cout << "[DEBUG] Deleting Process: " << p->ID << endl;
@@ -210,7 +210,7 @@ Process* MultilevelQueue::RR(){
     }
     #ifdef DEBUG
     cout << "[DEBUG] Previous ID: " << previous->ID << endl;
-    cout << "[DEBUG] Processing: " << p->ID << endl;
+    cout << "[DEBUG] Current ID: " << p->ID << endl;
     cout << "[DEBUG] Used time: " << used_time << endl;
     cout << "[DEBUG] Process RBT: " << p->RBT << endl;
     #endif
@@ -245,9 +245,25 @@ void print_all_queue(priority_queue<MultilevelQueue> pq){
         pq.pop();
     }
     for(auto it : tmpMQ){
+        cout << "=====================" << endl;
         cout << "[DEBUG] Queue number: " << it.order << "'s info: " << endl;
-        if(it.previous != nullptr)cout << "[DEBUG] Queue previous ID: " << it.previous->ID << endl;
+        if(it.previous != nullptr)cout << "[DEBUG] Queue previous process ID: " << it.previous->ID << endl;
         else cout << "[DEBUG] No previous!" << endl;
+        switch (it.mode)
+        {
+        case 0:
+            cout << "[DEBUG] FCFS mode" << endl;
+            break;
+        case 1:
+            cout << "[DEBUG] SRTF mode" << endl;
+            break;
+        case 2:
+            cout << "[DEBUG] RR mode" << endl;
+            cout << "[DEBUG] Time Quantum: " << it.TQ << endl;
+            break;
+        default:
+            break;
+        }
         it.printVector();
     }
     return;
@@ -278,7 +294,6 @@ int main() {
     
     int time = 0;
     vector<Process*> finish;
-
     while(true){
         #ifdef DEBUG
         cout << "[DEBUG] Time: " << time << endl;
@@ -347,9 +362,6 @@ int main() {
                         #endif
                         tmpMQ[queue_id].previous->Preempt = true;
                     }
-                    else if (lower_queue_exist_process){
-                        tmpMQ[queue_id].v[0]->Preempt = true;
-                    }
                 }
             }
         }
@@ -371,13 +383,16 @@ int main() {
             if(!tmpMQ[i].v.empty()){
                 updated_process = tmpMQ[i].update();
                 updated_queue = tmpMQ[i];
+                tmpMQ[i].previous = updated_process;
                 break;
             }
         }
         
-        for(auto it: tmpMQ){
-            if(it.order != updated_queue.order) 
-                it.update_wait_time();
+        for(int i = 0 ; i < tmpMQ.size() ; i++){
+            if(tmpMQ[i].order != updated_queue.order){
+                tmpMQ[i].previous = nullptr;
+                tmpMQ[i].update_wait_time();
+            }
         }
 
         for(int i = 0 ; i < tmpMQ.size() ;i++){
@@ -398,12 +413,15 @@ int main() {
                         tmpMQ[i].v.erase(it);
                         tmpMQ[i].v.push_back(tmp);
                     }
-                    if(!tmpMQ[i].v.empty()){
-                        tmpMQ[i].previous = tmpMQ[i].v[0];
-                    }
-                    else{
-                        tmpMQ[i].previous = nullptr;
-                    }
+                    // if(!tmpMQ[i].v.empty()){
+                    //     tmpMQ[i].previous = tmpMQ[i].v[0];
+                    // }
+                    // else{
+                    //     tmpMQ[i].previous = nullptr;
+                    // }
+                }
+                if(tmpMQ[i].mode == 2 && tmpMQ[i].used_time == 0 && tmpMQ[i].previous != nullptr){
+                    tmpMQ[i].previous = nullptr;
                 }
             }
         }
@@ -430,7 +448,7 @@ int main() {
         time++; // Update timer
         #ifdef DEBUG
         print_all_queue(pq);
-        cout << "=====================" << endl;
+        cout << "*******************************" << endl;
         #endif
     }   
 

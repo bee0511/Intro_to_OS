@@ -6,7 +6,7 @@
 
 using namespace std;
 
-// #define DEBUG 1
+#define DEBUG 1
 
 class Process{
 public:
@@ -419,9 +419,10 @@ int main() {
                     // else{
                     //     tmpMQ[i].previous = nullptr;
                     // }
-                }
-                if(tmpMQ[i].mode == 2 && tmpMQ[i].used_time == 0 && tmpMQ[i].previous != nullptr){
-                    tmpMQ[i].previous = nullptr;
+                    
+                    if(tmpMQ[i].mode == 2 && tmpMQ[i].used_time == 0 && tmpMQ[i].previous != nullptr){
+                        tmpMQ[i].previous = nullptr;
+                    }
                 }
             }
         }

@@ -3,10 +3,10 @@
 # Compile your program
 if g++ -o hw2 ./hw2_110550164.cpp; then
   # Run your program and redirect its output to a file
-  ./hw2 < ./testcase/part_5/t1.txt > program_output.txt
+  ./hw2 < ./testcase/part_1/t1.txt > program_output.txt
 
   # Compare the program output with the expected answer
-  if diff program_output.txt ./answer/part_5/a1.txt; then
+  if diff program_output.txt ./answer/part_1/a1.txt; then
     echo "Test passed."
   else
     echo "Test failed. Output does not match the expected answer."

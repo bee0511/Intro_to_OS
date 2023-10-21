@@ -75,7 +75,7 @@ public:
     Process* SRTF();
     Process* RR();
 
-    void update_wait_time();
+    void updateWaitTime();
     void printVector(){
         for(auto it: v){
             it->printInfo();
@@ -114,7 +114,7 @@ Process* MultilevelQueue::update(){
     return p;
 }
 
-void MultilevelQueue::update_wait_time(){
+void MultilevelQueue::updateWaitTime(){
     for(auto it: v){
         it->WT++;
         #ifdef DEBUG
@@ -135,7 +135,7 @@ Process* MultilevelQueue::FCFS(){
         v.erase(v.begin());
         p->WT++;
     }
-    update_wait_time();
+    updateWaitTime();
     return p;
 }
     
@@ -181,7 +181,7 @@ Process* MultilevelQueue::SRTF(){
         v.erase(selected_process); // Remove the process using the iterator
         p->WT++;
     }
-    update_wait_time();
+    updateWaitTime();
     return p;
 }
     
@@ -191,6 +191,7 @@ Process* MultilevelQueue::RR(){
     Process* p = v.front();
     if (previous == nullptr){
         previous = p;
+        used_time = 0;
     }    
     if (p != previous) {
         previous->Preempt = true;
@@ -230,7 +231,7 @@ Process* MultilevelQueue::RR(){
         used_time = 0;
         p->WT++;
     }
-    update_wait_time();
+    updateWaitTime();
     return p;
 }
 
@@ -299,6 +300,7 @@ int main() {
         cout << "[DEBUG] Time: " << time << endl;
         fgetc(stdin);  
         #endif
+        //check whether all queues are empty
         bool emptyFlag = true;
         vector<MultilevelQueue> tmpMQ;
         while(!pq.empty()){
@@ -312,6 +314,8 @@ int main() {
             pq.push(it);
         }
         tmpMQ.clear();
+
+        //If all queue empty and no new process, skip
         if(emptyFlag && processes.front()->AT > time){
             while(!pq.empty()){
                 tmpMQ.push_back(pq.top());
@@ -328,10 +332,12 @@ int main() {
             continue;
         }
 
+
         while(!pq.empty()){
             tmpMQ.push_back(pq.top());
             pq.pop();
         }
+        // check whether new process come
         if(!processes.empty()){
             Process* new_process;
             new_process = processes.front();
@@ -365,6 +371,7 @@ int main() {
                 }
             }
         }
+        // Update all JustPreempted flag
         for(auto it: tmpMQ){
             for(int i = 0 ; i < it.v.size() ; i++){
                 it.v[i]->JustPreempted = false;
@@ -373,6 +380,7 @@ int main() {
         }
         tmpMQ.clear();
 
+        // Update highest priority queue's process's status
         Process* updated_process;
         MultilevelQueue updated_queue = pq.top();
         while(!pq.empty()){
@@ -388,50 +396,52 @@ int main() {
             }
         }
         
+        // Update all other queue's status and set they are not working
         for(int i = 0 ; i < tmpMQ.size() ; i++){
             if(tmpMQ[i].order != updated_queue.order){
                 tmpMQ[i].previous = nullptr;
-                tmpMQ[i].update_wait_time();
+                tmpMQ[i].updateWaitTime();
             }
         }
 
+        // Start to handle preempt flags
         for(int i = 0 ; i < tmpMQ.size() ;i++){
             for(int j = 0 ; j < tmpMQ[i].v.size() ; j++){
-                if(tmpMQ[i].v[j]->Preempt == true){
-                    if(i != tmpMQ.size() - 1){ // exist other level Queue
-                        tmpMQ[i].v[j]->Preempt = false;
-                        tmpMQ[i].v[j]->JustPreempted = true;
-                        tmpMQ[i + 1].v.push_back(tmpMQ[i].v[j]);
-                        auto it = std::find(tmpMQ[i].v.begin(), tmpMQ[i].v.end(), tmpMQ[i].v[j]);
-                        tmpMQ[i].v.erase(it);
-                    }
-                    else{
-                        Process* tmp = tmpMQ[i].v[j];
-                        tmp->Preempt = false;
-                        tmp->JustPreempted = true;
-                        auto it = std::find(tmpMQ[i].v.begin(), tmpMQ[i].v.end(), tmpMQ[i].v[j]);
-                        tmpMQ[i].v.erase(it);
-                        tmpMQ[i].v.push_back(tmp);
-                    }
-                    // if(!tmpMQ[i].v.empty()){
-                    //     tmpMQ[i].previous = tmpMQ[i].v[0];
-                    // }
-                    // else{
-                    //     tmpMQ[i].previous = nullptr;
-                    // }
-                    
-                    if(tmpMQ[i].mode == 2 && tmpMQ[i].used_time == 0 && tmpMQ[i].previous != nullptr){
-                        tmpMQ[i].previous = nullptr;
-                    }
+                if(!tmpMQ[i].v[j]->Preempt) continue;
+                Process* tmp = tmpMQ[i].v[j];
+                tmp->Preempt = false;
+                tmp->JustPreempted = true;
+                auto it = std::find(tmpMQ[i].v.begin(), tmpMQ[i].v.end(), tmpMQ[i].v[j]);
+                tmpMQ[i].v.erase(it);
+                if(i != tmpMQ.size() - 1){ // exist other level Queue
+                    tmpMQ[i + 1].v.push_back(tmp);
+                }
+                else{
+                    tmpMQ[i].v.push_back(tmp);
+                }
+                if(tmpMQ[i].mode == 2 && tmpMQ[i].used_time == 0 && tmpMQ[i].previous != nullptr){
+                    // prevent process in RR is preempted twice when time's up and high priority queue preempt it
+                    tmpMQ[i].previous = nullptr;
                 }
             }
         }
-        // The highest priority multilevel queue is not empty or not all processes has arrived
-        if(!tmpMQ[0].v.empty() || !processes.empty()){
-            pq.push(tmpMQ[0]);
+
+        // Not all processes has arrived, push all queues back
+        if(!processes.empty()){
+            for(int i = 0 ; i < tmpMQ.size() ; i++){
+                pq.push(tmpMQ[i]);
+            }
         }
-        for(int i = 1 ; i < tmpMQ.size() ; i++){
-            pq.push(tmpMQ[i]);
+        // All processes have arrived, delete high priority queues with no process
+        else{
+            bool high_priority_queue_empty_flag = true;
+            for(int i = 0 ; i < tmpMQ.size() ; i++){
+                if(tmpMQ[i].v.empty() && high_priority_queue_empty_flag){
+                    continue;
+                }
+                high_priority_queue_empty_flag = false;
+                pq.push(tmpMQ[i]);
+            }
         }
         tmpMQ.clear();
 

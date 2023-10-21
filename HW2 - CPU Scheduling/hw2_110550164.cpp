@@ -6,7 +6,7 @@
 
 using namespace std;
 
-#define DEBUG 1
+// #define DEBUG 1
 
 class Process{
 public:
@@ -403,9 +403,8 @@ int main() {
                 tmpMQ[i].updateWaitTime();
             }
         }
-
         // Start to handle preempt flags
-        for(int i = 0 ; i < tmpMQ.size() ;i++){
+        for(int i = tmpMQ.size() - 1 ; i >= 0  ;i--){
             for(int j = 0 ; j < tmpMQ[i].v.size() ; j++){
                 if(!tmpMQ[i].v[j]->Preempt) continue;
                 Process* tmp = tmpMQ[i].v[j];

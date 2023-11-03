@@ -14,6 +14,7 @@ while getopts "t:" op 2>/dev/null; do
 done
 
 g++ hw3-3_serial.cpp -o hw3-3 -lpthread
+test -e hw3-3 || exit 255
 time -p -o "$num_threads"threads.txt ./hw3-3 -t $num_threads < testcase/case"$case_num".txt
 time -p -o 1thread.txt ./hw3-3 -t 1 < testcase/case"$case_num".txt
 

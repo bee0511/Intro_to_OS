@@ -49,21 +49,30 @@ bool best_response(int v) {
   return true;
 }
 
-void maximum_independent_set(int v) {
-  bool converged = false;
+void maximum_independent_set(int id) {
+  while (true) {
+    int v = -1;
 
-  while (!converged) {
-    if (vertex_checked[v]) {
-      converged = is_converged();
-    } else {
-      bool old_response = vertex_status[v];
-      vertex_status[v] = best_response(v);
-
-      vertex_checked[v] = true;
-      if (vertex_status[v] != old_response) {
-        for (int u : adjacent_matrix[v])
-          vertex_checked[u] = false;
+    // Work-stealing: Each thread tries to find an unprocessed vertex
+    for (int i = id; i < V; i += MAX_THREADS) {
+      if (!vertex_checked[i]) {
+        v = i;
+        break;
       }
+    }
+
+    // No unprocessed vertices found, exit
+    if (v == -1) {
+      break;
+    }
+
+    bool old_response = vertex_status[v];
+    vertex_status[v] = best_response(v);
+
+    vertex_checked[v] = true;
+    if (vertex_status[v] != old_response) {
+      for (int u : adjacent_matrix[v])
+        vertex_checked[u] = false;
     }
   }
 }

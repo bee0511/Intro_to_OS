@@ -30,6 +30,7 @@ if [ $? -eq 0 ]; then
   for testcase in 4 5 6
   do
     timeout 3.5 ./a.out < testcase/case$testcase.txt > ans.txt
+    time ./a.out -p < testcase/case$testcase.txt
     if [ $? -eq 0 ]; then
       python val.py $testcase ans.txt
       if [ $? -eq 0 ]; then
@@ -44,3 +45,6 @@ if [ $? -eq 0 ]; then
 else
   echo "CE"
 fi
+
+rm a.out
+rm ans.txt

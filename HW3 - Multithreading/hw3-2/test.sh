@@ -24,6 +24,7 @@ if [ $? -eq 0 ]; then
     else
       echo "testcase $testcase: TLE"
     fi
+    time ./a.out -p < testcase/case$testcase.txt
   done
 
   # large testcase: test for busy wait

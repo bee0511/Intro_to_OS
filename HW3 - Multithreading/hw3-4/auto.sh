@@ -1,7 +1,7 @@
 #!/bin/sh
 
 case_num=3
-filename=hw3-4_serial.cpp
+filename=hw3-4.cpp
 
 while getopts "t:" op 2>/dev/null; do
   case $op in
@@ -19,10 +19,10 @@ test -e tmp || exit 255
 multi_ans=$(time -p -o "$num_threads"threads.txt ./tmp -t $num_threads < testcase/case"$case_num".txt)
 single_ans=$(time -p -o 1thread.txt ./tmp -t 1 < testcase/case"$case_num".txt)
 ans=$(cat answer/case"$case_num".txt)
-if [ "$multi_ans" -ne "$ans" ]; then
+if [ "$multi_ans" != "$ans" ]; then
   echo "Answer of multiple thread is wrong, the answer of multiple thread is $multi_ans"
 fi
-if [ "$single_ans" -ne "$ans" ]; then
+if [ "$single_ans" != "$ans" ]; then
   echo "Answer of single thread is wrong, the answer of single thread is $single_ans"
 fi
 

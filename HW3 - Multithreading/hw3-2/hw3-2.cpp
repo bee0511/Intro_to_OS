@@ -35,75 +35,69 @@ bool vertex_status[MAX_VERTICES];
 
 // if every vertex is checked, then the graph is converged
 bool is_converged() {
-  for (int i = 0; i < V; i++)
-    if (!vertex_checked[i])
-      return false;
-  return true;
+    for (int i = 0; i < V; i++)
+        if (!vertex_checked[i])
+            return false;
+    return true;
 }
 
 // if any neighbor is in the set, then leave the set
 bool best_response(int v) {
-  for (int u : adjacent_matrix[v])
-    if (vertex_status[u])
-      return false;
-  return true;
+    for (int u : adjacent_matrix[v])
+        if (vertex_status[u])
+            return false;
+    return true;
 }
 
-void maximum_independent_set(int id) {
-  while (true) {
-    int v = -1;
+mutex check_converge_mutex;  // Used for critical section
 
-    // Work-stealing: Each thread tries to find an unprocessed vertex
-    for (int i = id; i < V; i += MAX_THREADS) {
-      if (!vertex_checked[i]) {
-        v = i;
-        break;
-      }
+void maximum_independent_set(int v) {
+    bool converged = false;
+    while (!converged) {
+        check_converge_mutex.lock();
+        // Start critical section
+        if (vertex_checked[v]) {
+            converged = is_converged();
+        } else {
+            bool old_response = vertex_status[v];
+            vertex_status[v] = best_response(v);
+            vertex_checked[v] = true;
+            if (vertex_status[v] != old_response) {
+                for (int u : adjacent_matrix[v])
+                    vertex_checked[u] = false;
+            }
+        }
+        // End critical section
+        check_converge_mutex.unlock();
     }
-
-    // No unprocessed vertices found, exit
-    if (v == -1) {
-      break;
-    }
-
-    bool old_response = vertex_status[v];
-    vertex_status[v] = best_response(v);
-
-    vertex_checked[v] = true;
-    if (vertex_status[v] != old_response) {
-      for (int u : adjacent_matrix[v])
-        vertex_checked[u] = false;
-    }
-  }
 }
-
 int main(void) {
-  cin >> V >> E;
+    cin >> V >> E;
 
-  thread t[V];
+    thread t[V];
 
-  for (int i = 0; i < V; i++) {
-    vertex_checked[i] = false;
-    vertex_status[i] = false;
-  }
+    for (int i = 0; i < V; i++) {
+        vertex_checked[i] = false;
+        vertex_status[i] = false;
+    }
 
-  for (int i = 0; i < E; i++) {
-    int u, v;
-    cin >> u >> v;
-    adjacent_matrix[v].push_back(u);
-    adjacent_matrix[u].push_back(v);
-  }
+    for (int i = 0; i < E; i++) {
+        int u, v;
+        cin >> u >> v;
+        adjacent_matrix[v].push_back(u);
+        adjacent_matrix[u].push_back(v);
+    }
 
-  for (int i = 0; i < V; i++)
-    t[i] = thread(maximum_independent_set, i);
+    for (int i = 0; i < V; i++)
+        t[i] = thread(maximum_independent_set, i);
 
-  for (int i = 0; i < V; i++)
-    t[i].join();
+    for (int i = 0; i < V; i++)
+        t[i].join();
 
-  for (int i = 0; i < V; i++) {
-    if (!vertex_status[i])
-      continue;
-    cout << i << ' ';
-  }
-  cout << '\n';
+    for (int i = 0; i < V; i++) {
+        if (!vertex_status[i])
+            continue;
+        cout << i << ' ';
+    }
+    cout << '\n';
 }

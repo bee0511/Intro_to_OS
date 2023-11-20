@@ -1,62 +1,92 @@
-#include <atomic>
+#include <math.h>
+
 #include <cstdint>
-#include <cstring>
 #include <iostream>
 #include <mutex>
+#include <queue>
 #include <thread>
 #include <vector>
-
 using namespace std;
 
-int n, m;
+int n, m, t;
 vector<uint64_t> subsets;
-uint64_t one = static_cast<uint64_t>(1);
-atomic<uint64_t> global_count(0);
-mutex count_mutex;
+uint64_t one = static_cast<uint64_t>(1), global_count = 0;
 
-void solve(int start, int end) {
-    // Local count to store the number of valid subsets for the current thread
-    uint64_t local_count = 0;
+vector<int> counts;
 
-    // Iterate through the range of subsets assigned to this thread
-    for (int i = start; i < end; i++) {
-        // Initialize a variable to represent the bitwise OR of selected elements in the subset
-        uint64_t current = 0;
+vector<thread> threads;
+int thread_idx = 0;
+vector<mutex> mutexes;
+mutex m1;
 
-        // Iterate through the elements in the subset
-        for (int j = 0; j < m; j++) {
-            // Check if the j-th bit is set in the binary representation of i
-            if ((i & (1 << j)) != 0) {
-                // If set, perform bitwise OR with the corresponding element in subsets
-                current |= subsets[j];
-            }
-        }
-
-        // Check if the bitwise OR of the current subset equals the target value
+void solve_in_thread(int index, uint64_t current, int idx) {
+    if (index == m) {
         if (current == (one << n) - 1) {
-            // If yes, increment the local count
-            local_count++;
+            // mutexes[idx].lock();
+            counts[idx] += 1;
+            // mutexes[idx].unlock();
         }
+    } else {
+        solve_in_thread(index + 1, current, idx);
+        solve_in_thread(index + 1, current | subsets[index], idx);
     }
-
-    // Use a lock_guard to safely update the global count across multiple threads
-    lock_guard<mutex> lock(count_mutex);
-    global_count += local_count;
+    // queue<pair<int, uint64_t> > q;
+    // q.push({index, current});
+    // while(!q.empty())
+    //{
+    //     auto p = q.front();
+    //     q.pop();
+    //     if(p.first == m)
+    //     {
+    //         if (p.second == (one << n) - 1){
+    //             mutexes[idx].lock();
+    //             counts[idx]+=1;
+    //             mutexes[idx].unlock();
+    //         }
+    //     } else{
+    //         q.push({p.first+1, p.second});
+    //         q.push({p.first+1, p.second | subsets[p.first]});
+    //     }
+    // }
 }
 
-int main(int argc, char *argv[]) {
-    int num_threads = 1;  // Default number of threads
-
-    // Parse command-line arguments to get the number of threads
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
-            num_threads = atoi(argv[i + 1]);
+void solve(int index, uint64_t current) {
+    if (index == m) {
+        if (current == (one << n) - 1) {
+            m1.lock();
+            global_count++;
+            m1.unlock();
         }
+    } else if (int(pow(2, index)) == t) {
+        threads[thread_idx] = thread(solve_in_thread, index, current, thread_idx);
+        // threads[thread_idx].join();
+        thread_idx += 1;
+        // if(thread_idx == t)
+        //{
+        //     for(int i=0;i<t;i++) threads[i].join();
+        // }
+        return;
+    } else {
+        solve(index + 1, current);
+        solve(index + 1, current | subsets[index]);
     }
+    return;
+}
 
+int main(int argc, char* argv[]) {
     cin >> n >> m;
 
+    t = 1;
+    std::vector<std::string> arguments(argv, argv + argc);
+    for (int i = 0; i < argc; i++) {
+        if (i != argc - 1 && arguments[i] == "-t") {
+            t = arguments[i + 1][0] - '0';
+        }
+    }
+    threads.resize(t);
+    counts = vector<int>(t, 0);
     subsets.resize(m);
+    mutexes = vector<mutex>(t);
     for (int i = 0; i < m; i++) {
         int p, temp;
         cin >> p;
@@ -66,20 +96,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    vector<thread> threads;
-    int chunk_size = (1 << m) / num_threads;
-    int start = 0;
+    solve(0, 0);
 
-    for (int i = 0; i < num_threads; i++) {
-        int end = (i == num_threads - 1) ? (1 << m) : start + chunk_size;
-        threads.emplace_back(solve, start, end);
-        start = end;
-    }
+    for (int i = 0; i < t; i++) threads[i].join();
 
-    for (auto &t : threads) {
-        t.join();
-    }
-
-    cout << global_count << endl;
+    int ans = 0;
+    for (int i = 0; i < t; i++) ans += counts[i];
+    cout << ans << endl;
     return 0;
 }

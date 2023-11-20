@@ -1,12 +1,13 @@
-#include <iostream>
+#include <atomic>
 #include <cstring>
+#include <iostream>
 #include <thread>
 #include <vector>
-#include <atomic>
 
 using namespace std;
 
 int n;
+int num_threads = 1;
 atomic<int> global_count{0};
 
 inline bool is_prime(int num) {
@@ -20,16 +21,25 @@ inline bool is_prime(int num) {
     return true;
 }
 
-void count_primes(int start, int end, int& local_count) {
-    local_count = 0;
-    for (int i = start; i <= end; i++) {
-        if (is_prime(i)) local_count++;
+void count_primes(int thread_index) {
+    int local_count = 0;
+
+    bool flip_flag = false;
+    for (int i = thread_index; i <= n; i += num_threads) {
+        // if num_thread = 4 -> distribute 1, 2, 3, 4 to thread 1, 2, 3, 4
+        if (!flip_flag && is_prime(i))
+            local_count++;
+        // if num_thread = 4 -> distribute 4, 3, 2, 1 to thread 1, 2, 3, 4
+        else if (flip_flag && is_prime(i + (num_threads + 1) - 2 * thread_index))
+            local_count++;
+
+        flip_flag = !flip_flag;
     }
+
+    global_count += local_count;
 }
 
 int main(int argc, char* argv[]) {
-    int num_threads = 1; // Default number of threads
-
     // Parse command line arguments to get the number of threads
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
@@ -41,13 +51,9 @@ int main(int argc, char* argv[]) {
 
     // Divide the work among threads
     vector<thread> threads;
-    int chunk_size = n / num_threads;
-    vector<int> local_counts(num_threads, 0); // Create a vector to hold local counts
 
-    for (int i = 0; i < num_threads; i++) {
-        int start = i * chunk_size + 1;
-        int end = (i == num_threads - 1) ? n : (i + 1) * chunk_size;
-        threads.emplace_back(count_primes, start, end, ref(local_counts[i]));
+    for (int i = 1; i <= num_threads; i++) {
+        threads.emplace_back(thread(count_primes, i));
     }
 
     // Wait for all threads to finish
@@ -55,12 +61,7 @@ int main(int argc, char* argv[]) {
         t.join();
     }
 
-    // Calculate the global count by summing up local counts
-    int final_count = 0;
-    for (int count : local_counts) {
-        final_count += count;
-    }
+    cout << global_count << endl;
 
-    cout << final_count << endl;
     return 0;
 }

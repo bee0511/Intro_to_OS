@@ -17,28 +17,28 @@ atomic<int> global_count{0};
 
 int num_threads = 1;
 
-uint64_t local_count[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+vector<int> local_count;
+
 vector<thread> threads;
 int thread_idx = 0;
 vector<mutex> mutexes;
 mutex m1;
 
-void solve_in_thread(int index, uint64_t current, int tid) {
+void solve_in_thread(int index, uint64_t current, int idx) {
     if (index == m) {
-        if (current == (one << n) - 1) local_count[tid]++;
+        if (current == (one << n) - 1) local_count[idx]++;
     } else {
-        solve_in_thread(index + 1, current, tid);
-        solve_in_thread(index + 1, current | subsets[index], tid);
+        solve_in_thread(index + 1, current, idx);
+        solve_in_thread(index + 1, current | subsets[index], idx);
     }
 }
 
 void solve(int index, uint64_t current) {
     if (index == m) {
-        if (current == (one << n) - 1) global_count++;
-    } else if ((index == 0 && num_threads == 1) ||
-               (index == 1 && num_threads == 2) ||
-               (index == 2 && num_threads == 4) ||
-               (index == 3 && num_threads == 8)) {
+        if (current == (one << n) - 1) {
+            global_count++;
+        }
+    } else if (int(pow(2, index)) == num_threads) {
         threads[thread_idx] = thread(solve_in_thread, index, current, thread_idx);
         thread_idx += 1;
         return;
@@ -60,6 +60,7 @@ int main(int argc, char* argv[]) {
     }
 
     threads.resize(num_threads);
+    local_count = vector<int>(num_threads, 0);
     subsets.resize(m);
 
     for (int i = 0; i < m; i++) {

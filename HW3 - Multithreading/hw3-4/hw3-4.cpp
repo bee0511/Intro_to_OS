@@ -1,57 +1,39 @@
-#include <math.h>
-
-#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
-#include <mutex>
-#include <queue>
 #include <thread>
 #include <vector>
+
 using namespace std;
+
+int num_threads = 1;
+uint64_t local_count[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+thread threads[8];
 
 int n, m;
 vector<uint64_t> subsets;
-uint64_t one = static_cast<uint64_t>(1);
-atomic<int> global_count{0};
+uint64_t one = static_cast<uint64_t>(1), global_count = 0;
 
-int num_threads = 1;
-
-uint64_t local_count[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-vector<thread> threads;
-int thread_idx = 0;
-vector<mutex> mutexes;
-mutex m1;
-
-void solve_in_thread(int index, uint64_t current, int tid) {
+void solve(int index, uint64_t current, int thread_id) {
     if (index == m) {
-        if (current == (one << n) - 1) local_count[tid]++;
-    } else {
-        solve_in_thread(index + 1, current, tid);
-        solve_in_thread(index + 1, current | subsets[index], tid);
-    }
-}
+        if (current == (one << n) - 1) local_count[thread_id]++;
+    } else if ((index == 0 && num_threads >= 2) ||
+               (index == 1 && num_threads >= 4) ||
+               (index == 2 && num_threads >= 8)) { // Check if we can create new threads
 
-void solve(int index, uint64_t current) {
-    if (index == m) {
-        if (current == (one << n) - 1) global_count++;
-    } else if ((index == 0 && num_threads == 1) ||
-               (index == 1 && num_threads == 2) ||
-               (index == 2 && num_threads == 4) ||
-               (index == 3 && num_threads == 8)) {
-        threads[thread_idx] = thread(solve_in_thread, index, current, thread_idx);
-        thread_idx += 1;
-        return;
+        // Create new threads to solve the left child
+        int new_thread_id = thread_id + (1 << index);
+        threads[new_thread_id] = thread(solve, index + 1, current, new_thread_id);
+
+        // Use the original thread to solve the right child
+        solve(index + 1, current | subsets[index], thread_id);
     } else {
-        solve(index + 1, current);
-        solve(index + 1, current | subsets[index]);
+        solve(index + 1, current, thread_id);
+        solve(index + 1, current | subsets[index], thread_id);
     }
-    return;
 }
 
 int main(int argc, char* argv[]) {
-    cin >> n >> m;
-
     // Parse command line arguments to get the number of threads
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
@@ -59,9 +41,9 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    threads.resize(num_threads);
-    subsets.resize(m);
+    cin >> n >> m;
 
+    subsets.resize(m);
     for (int i = 0; i < m; i++) {
         int p, temp;
         cin >> p;
@@ -71,7 +53,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    solve(0, 0);
+    threads[0] = thread(solve, 0, 0, 0);
 
     for (int i = 0; i < num_threads; i++) {
         threads[i].join();

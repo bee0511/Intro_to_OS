@@ -1,4 +1,5 @@
 .vscode
+.venv
 hw2
 test
 test.cpp

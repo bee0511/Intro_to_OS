@@ -1,8 +1,8 @@
 #/bin/bash
 
-problem=4-1
+# problem=4-1
 # problem=4-2_LFU
-# problem=4-2_LRU
+problem=4-2_LRU
 
 make "$problem"
 
@@ -22,7 +22,7 @@ if [[ "$problem" = "4-1" ]]; then
     done
 elif [[ "$problem" = "4-2_LFU" ]]; then
     for i in {1..2} ; do
-        echo "Running testcases $i"
+        echo -e "\nRunning testcases $i"
         ./4-2_LFU < "./testcases/part2_case${i}.txt" > "./output/part2_LFU_case${i}.txt"
         if diff -q "./output/part2_LFU_case${i}.txt" "./testcases/part2_LFU_ans${i}.txt" > /dev/null; then
             echo "Testcase $i passed"
@@ -36,7 +36,7 @@ elif [[ "$problem" = "4-2_LFU" ]]; then
     done
 elif [[ "$problem" = "4-2_LRU" ]]; then
     for i in {1..2} ; do
-        echo "Running testcases $i"
+        echo -e "\nRunning testcases $i"
         ./4-2_LRU < "./testcases/part2_case${i}.txt" > "./output/part2_LRU_case${i}.txt"
         if diff -q "./output/part2_LRU_case${i}.txt" "./testcases/part2_LRU_ans${i}.txt" > /dev/null; then
             echo "Testcase $i passed"
@@ -50,4 +50,5 @@ elif [[ "$problem" = "4-2_LRU" ]]; then
     done
 fi
 
+echo -e "\nCleaning up"
 make clean

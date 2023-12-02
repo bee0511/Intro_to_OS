@@ -1,8 +1,8 @@
 #/bin/bash
 
 # problem=4-1
-# problem=4-2_LFU
-problem=4-2_LRU
+problem=4-2_LFU
+# problem=4-2_LRU
 
 make "$problem"
 

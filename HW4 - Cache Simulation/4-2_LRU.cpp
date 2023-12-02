@@ -31,16 +31,18 @@ int main() {
             }
         }
         // Check if the data is in the cache
-        for(int i = 0 ; i < blocks / k ; i++){
-            for(int j = 0 ; j < k ; j++){
-                if(cache[i][j] == data){
+        for (int i = 0; i < blocks / k; i++) {
+            for (int j = 0; j < k; j++) {
+                if (cache[i][j] == data) {
                     cache_hit = true;
                     counter[i][j] = 0;
+#ifdef DEBUG
+                    cout << "[O] Cache Hit!" << endl;
+#endif
                     break;
                 }
             }
         }
-
 
         if (!cache_hit) {
             cache_misses++;
@@ -80,7 +82,8 @@ int main() {
                 cout << counter[i][j] << " ";
             }
         }
-        cout << endl << "--------------" << endl;
+        cout << endl
+             << "--------------" << endl;
 #endif
     }
     cout << "Total Cache Misses:" << cache_misses;
